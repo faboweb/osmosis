@@ -12,9 +12,6 @@ import (
 	"cosmossdk.io/math"
 	storetypes "cosmossdk.io/store/types"
 
-	wasmkeeper "github.com/CosmWasm/wasmd/x/wasm/keeper"
-	wasmtypes "github.com/CosmWasm/wasmd/x/wasm/types"
-
 	"github.com/osmosis-labs/osmosis/osmoutils"
 	"github.com/osmosis-labs/osmosis/v26/x/poolmanager/types"
 	txfeestypes "github.com/osmosis-labs/osmosis/v26/x/txfees/types"
@@ -127,14 +124,6 @@ func (k Keeper) GetAllTradingPairTakerFees(ctx sdk.Context) ([]types.DenomPairTa
 	return takerFees, nil
 }
 
-func (k Keeper) execWasmMsg(ctx sdk.Context, execMsg *wasmtypes.MsgExecuteContract) (*wasmtypes.MsgExecuteContractResponse, error) {
-	if err := execMsg.ValidateBasic(); err != nil {
-		return nil, types.ErrBadExecution
-	}
-	wasmMsgServer := wasmkeeper.NewMsgServerImpl(k.ContractKeeper)
-	return wasmMsgServer.ExecuteContract(ctx, execMsg)
-}
-
 // chargeTakerFee extracts the taker fee from the given tokenIn and sends it to the appropriate
 // module account. It returns the tokenIn after the taker fee has been extracted.
 // If the sender is in the taker fee reduced whitelisted, it returns the tokenIn without extracting the taker fee.
@@ -164,38 +153,43 @@ func (k Keeper) chargeTakerFee(ctx sdk.Context, tokenIn sdk.Coin, tokenOutDenom 
 		tokenInAfterTakerFee, takerFeeCoin = CalcTakerFeeExactOut(tokenIn, takerFee)
 	}
 
-	// query the affiliate status from the affiliate cosmwasm contract for the sender
-	// if the sender is an affiliate, then we 30% of the taker fee to the affiliate account
+	//
+	// Revenue share with marketers
+	//
+
+	// query the revenue sharer status
+	// if the sender is an revenue sharer, then we skim 20% of the taker fee to the revenue sharer account
 	// and the rest to the taker fee module account
-	// if the sender is not an affiliate, then we send the entire taker fee to the taker fee module account
+	// if the sender is not an revenue sharer, then we send the entire taker fee to the taker fee module account
+	revenueShareFee := k.GetParams(ctx).TakerFeeParams.RevenueShareFee
 
-	// TODO
-	// affiliateFee := k.GetParams(ctx).TakerFeeParams.AffiliateFee
-	affiliateFee := osmomath.MustNewDecFromStr("0.2")
-
+	// this is the record of the revenue sharer status of the sender and his parents
 	revenueShareUser, err := k.getRevenueShareUser(ctx, sender)
 	if err != nil {
 		return sdk.Coin{}, sdk.Coin{}, err
 	}
 
 	if len(revenueShareUser.Parents) > 0 {
-		affiliateFeeAmount := affiliateFee.MulInt(takerFeeCoin.Amount).TruncateInt()
-		affiliateFeeCoin := sdk.Coin{Denom: takerFeeCoin.Denom, Amount: affiliateFee.MulInt(takerFeeCoin.Amount).TruncateInt()}
-		takerFeeCoin = sdk.Coin{Denom: takerFeeCoin.Denom, Amount: takerFeeCoin.Amount.Sub(affiliateFeeAmount)}
+		// calculate the amount to skim
+		revenueShareAmount := revenueShareFee.MulInt(takerFeeCoin.Amount).TruncateInt()
+		revenueShareFeeCoin := sdk.Coin{Denom: takerFeeCoin.Denom, Amount: revenueShareFee.MulInt(takerFeeCoin.Amount).TruncateInt()}
+		// calculate the remaining fees
+		takerFeeCoin = sdk.Coin{Denom: takerFeeCoin.Denom, Amount: takerFeeCoin.Amount.Sub(revenueShareAmount)}
 
+		// go through parents and give each 20% of the child
 		for _, parent := range revenueShareUser.Parents {
-			share := math.LegacyOneDec().Sub(affiliateFee).MulInt(affiliateFeeAmount).TruncateInt()
-			// panic(fmt.Sprintf("share: %s, affiliateFeeAmount: %s, affiliateFee: %s, takeFeeCoin: %s", share.String(), affiliateFeeAmount.String(), affiliateFee.String(), takerFeeCoin.String()))
-			err := k.bankKeeper.SendCoins(ctx, sender, sdk.MustAccAddressFromBech32(parent), sdk.NewCoins(sdk.NewCoin(affiliateFeeCoin.Denom, share)))
+			share := math.LegacyOneDec().Sub(revenueShareFee).MulInt(revenueShareAmount).TruncateInt()
+			err := k.bankKeeper.SendCoins(ctx, sender, sdk.MustAccAddressFromBech32(parent), sdk.NewCoins(sdk.NewCoin(revenueShareFeeCoin.Denom, share)))
 
 			// rest goes up the referral list
-			affiliateFeeAmount = affiliateFeeAmount.Sub(share)
+			revenueShareAmount = revenueShareAmount.Sub(share)
 			if err != nil {
 				return sdk.Coin{}, sdk.Coin{}, err
 			}
 		}
 	}
 
+	// send taker fees to the according module
 	err = k.bankKeeper.SendCoinsFromAccountToModule(ctx, sender, takerFeeModuleAccountName, sdk.NewCoins(takerFeeCoin))
 	if err != nil {
 		return sdk.Coin{}, sdk.Coin{}, err
