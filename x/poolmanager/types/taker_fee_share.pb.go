@@ -215,7 +215,8 @@ func (m *AlloyContractTakerFeeShareState) GetTakerFeeShareAgreements() []TakerFe
 type RevenueShareUser struct {
 	// user_address is the address of the user that has a revenue share agreement.
 	UserAddress string `protobuf:"bytes,1,opt,name=user_address,json=userAddress,proto3" json:"user_address,omitempty" yaml:"user_address"`
-	// parents is the chain of addresses that the revenue share will be distributed to.
+	// parents is the chain of addresses that the revenue share will be
+	// distributed to.
 	Parents []string `protobuf:"bytes,2,rep,name=parents,proto3" json:"parents,omitempty" yaml:"parents"`
 }
 

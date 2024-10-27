@@ -22,13 +22,18 @@ service Query {
         "/osmosis/poolmanager/v2/pools/{pool_id}/prices";
   }
   rpc IsAffiliated(IsAffiliatedRequest) returns (IsAffiliatedResponse) {
-    option (google.api.http).get = "/osmosis/poolmanager/v2/affiliated/{address}";
+    option (google.api.http).get =
+        "/osmosis/poolmanager/v2/affiliated/{address}";
   }
-  rpc RevenueShareLeaderboard(RevenueShareLeaderboardRequest) returns (RevenueShareLeaderboardResponse) {
-    option (google.api.http).get = "/osmosis/poolmanager/v2/revenue_share_leaderboard";
+  rpc RevenueShareLeaderboard(RevenueShareLeaderboardRequest)
+      returns (RevenueShareLeaderboardResponse) {
+    option (google.api.http).get =
+        "/osmosis/poolmanager/v2/revenue_share_leaderboard";
   }
-  rpc RevenueShareSummary(RevenueShareSummaryRequest) returns (RevenueShareSummaryResponse) {
-    option (google.api.http).get = "/osmosis/poolmanager/v2/revenue_share_summary/{address}";
+  rpc RevenueShareSummary(RevenueShareSummaryRequest)
+      returns (RevenueShareSummaryResponse) {
+    option (google.api.http).get =
+        "/osmosis/poolmanager/v2/revenue_share_summary/{address}";
   }
 }
 
@@ -53,27 +58,21 @@ message SpotPriceResponse {
   ];
 }
 
-message IsAffiliatedRequest {
-  string address = 1;
-}
+message IsAffiliatedRequest { string address = 1; }
 
 message IsAffiliatedResponse {
   bool is_affiliated = 1;
   string referrer = 2;
 }
 
-message RevenueShareSummaryRequest {
-  string address = 1;
-}
+message RevenueShareSummaryRequest { string address = 1; }
 
 message RevenueShareSummaryResponse {
   string address = 1;
   uint64 signups = 2;
 }
 
-message RevenueShareLeaderboardRequest {
-  string address = 1;
-}
+message RevenueShareLeaderboardRequest { string address = 1; }
 
 message RevenueShareLeaderboardResponse {
   repeated RevenueShareSummaryResponse leaderboard = 1;

@@ -106,7 +106,7 @@ message TakerFeeParams {
   // In the future, we will charge a reduced taker fee instead of no fee at all.
   repeated string reduced_fee_whitelist = 6
       [ (gogoproto.moretags) = "yaml:\"reduced_fee_whitelist\"" ];
-      
+
   // affiliate_fee is the portion of the taker fee that is sent to the affiliate
   string affiliate_fee = 7 [
     (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
